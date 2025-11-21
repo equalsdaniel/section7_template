@@ -42,19 +42,31 @@ class Frontier_Explorer(Node):
         print("Running Explore\n")
         window_size = 13    # defines the window side-length for neighborhood of cells to consider for heuristics
         current_state = np.array([self.state.x, self.state.y])
-        
-        occupied_mask = np.where(self.occupancy.probs >= 0.5, 1, 0)
-		unknown_mask = # TODO use np.where to find unknown mask which is indicated by the value -1
-		unoccupied_mask = # TODO use np.where to find unknown mask which is indicated by values in range [0, 0.5)
+		kernel = np.ones((window_size, window_size))
 
-        kernel = # TODO define the kernel
-        occupied=# TODO 2d convolution of mask (use convolve2d) using kernel and mode='same'
-        unoccupied=# TODO 2d convolution of mask (use convolve2d) using kernel and mode='same'
-        unknown= # TODO 2d convolution of mask (use convolve2d) using kernel and mode='same'
+    	#first build binary mapping from stochastic occupancy
+    	map_u = occupancy.probs == -1
+    	map_o = occupancy.probs >= 0.5
+    	map_f = occupancy.probs < 0.5
+    	#use maping and convolve2d to build counts for our 3 heuristic conditions
+    	count_u = convolve2d(map_u, kernel, mode='same')
+    	count_o = convolve2d(map_o, kernel, mode='same')
+    	count_f = convolve2d(map_f, kernel, mode='same')
 
-        frontier_mask = # TODO use np.where to make frontier mask based on the 3 conditions of Exploration Heuristics
-        frontier_states = np.transpose(np.nonzero(np.transpose(frontier_mask)))
-        frontier_states = self.occupancy.grid2state(frontier_states)
+		 #use counts to build heuristic masks
+    	mask_u = count_u >= (0.2 * window_size * window_size) #is the window_size aspect of this correct, double check, think window_size is correct, but not sure about >=
+    	mask_o = count_o == 0 ##changed to != out of curiousity
+    	mask_f = count_f >= (0.3 * window_size * window_size)
+    	full_mask = mask_u & mask_o & mask_f
+
+    	rows, cols = np.where(full_mask)
+    	# If no frontier states are found, return an empty array
+    	if rows.size == 0:
+        	print("No valid frontier states found.")
+        	return np.empty((0, 2))
+
+		grid_coords = np.stack((cols, rows), axis=-1)
+    	frontier_states = occupancy.grid2state(grid_coords)
         
         if len(frontier_states) == 0:
             print("Finished exploring")
@@ -177,3 +189,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
